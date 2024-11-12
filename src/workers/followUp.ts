@@ -2,6 +2,8 @@ import { ChromaClient, OpenAIEmbeddingFunction } from 'chromadb'
 import chromadb from '../config/chromadb'
 import { askStream } from '../lib/openai'
 import { DiscordJob, DiscordWorker } from '../lib/DiscordWorker'
+import equalityGoals from '../prompts/followUp/equalityGoals'
+import { zodResponseFormat } from "openai/helpers/zod";
 
 const embedder = new OpenAIEmbeddingFunction({
   openai_api_key: process.env.OPENAI_API_KEY,
@@ -66,12 +68,55 @@ const followUp = new DiscordWorker<JobData>(
     
     `)
 
+    // Equality Goals Extraction Section
+    const equalityResults = await collection.query({
+      nResults: 5,
+      where: {
+        source: url,
+      },
+      queryTexts: [equalityGoals.prompt],
+    })
+
+    const equalityParagraphs = equalityResults.documents.flat()
+
+    job.log(`Equality goals extraction for ${url}:
+    ${equalityParagraphs.join('\n\n----------------\n\n')}
+    `)
+
+    try {
+      const equalityResponse = await askStream(
+        [
+          {
+            role: 'system',
+            content:
+              'You are an expert in corporate equality goals and diversity initiatives. Extract data relevant to these topics from the provided PDF context.',
+          },
+          {
+            role: 'user',
+            content:
+              'Equality goals extracted from PDF:\n' +
+              equalityParagraphs.join('\n\n------------------------------\n\n'),
+          },
+        ],
+        {
+          response_format: zodResponseFormat(equalityGoals.schema, 'equalityGoals'),
+        }
+      )
+
+      console.log("Equality Goals Response: ", equalityResponse)
+      job.log('Equality Goals Response: ' + equalityResponse)
+    }catch (err){
+      console.log("err", err)
+    }
+
+
+
     const response = await askStream(
       [
         {
           role: 'system',
           content:
-            'You are an expert in CSRD and will provide accurate data from a PDF with company CSRD reporting. Be consise and accurate.',
+            'You are an expert in CSRD and will provide accurate data from a PDF with company CSRD reporting. Be concise and accurate.',
         },
         {
           role: 'user',
@@ -100,9 +145,9 @@ For example, if you want to add a new field called "industry" the response shoul
         },
         Array.isArray(job.stacktrace)
           ? [
-              { role: 'assistant', content: previousAnswer },
-              { role: 'user', content: job.stacktrace.join('') },
-            ]
+            { role: 'assistant', content: previousAnswer },
+            { role: 'user', content: job.stacktrace.join('') },
+          ]
           : undefined,
       ]
         .flat()
@@ -113,7 +158,7 @@ For example, if you want to add a new field called "industry" the response shoul
     )
 
     job.log('Response: ' + response)
-    return response
+    return {response, equalityResults}
   }
 )
 

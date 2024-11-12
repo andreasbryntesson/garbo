@@ -6,6 +6,7 @@ import {
   Table,
 } from './jsonExtraction'
 import path from 'path'
+import * as crypto from 'crypto';
 
 async function getPngsFromPdfPage(stream: Buffer) {
   const pages = await pdf(stream, {
@@ -13,6 +14,11 @@ async function getPngsFromPdfPage(stream: Buffer) {
   })
   return pages
 }
+
+const generateShortFilename = (name: string, pageIndex: number) => {
+  const hash = crypto.createHash('md5').update(name).digest('hex');
+  return `table-${pageIndex}-${hash}.png`;
+};
 
 async function extractRegionAsPng(png, outputPath, x, y, width, height) {
   // Ladda PDF-dokumentet
@@ -51,8 +57,8 @@ export async function extractJsonFromPdf(buffer: Buffer) {
   } catch (err) {
     console.error(
       'Failed to parse PDF with NLM ingestor, have you started the docker container? (' +
-        nlmIngestorUrl +
-        ')'
+      nlmIngestorUrl +
+      ')'
     )
     response = { ok: false, statusText: err.message } as Response
   }
@@ -109,7 +115,7 @@ export async function extractTablesFromJson(
     ({ pageIndex, tables, pageWidth, pageHeight }) =>
       tables.map((table) =>
         pngs.getPage(pageIndex + 1).then((png) => {
-          /* Denna fungerar inte än pga boundingbox är fel pga en bugg i NLM ingestor BBOX (se issue här: https://github.com/nlmatics/nlm-ingestor/issues/66). 
+          /* Denna fungerar inte än pga boundingbox är fel pga en bugg i NLM ingestor BBOX (se issue här: https://github.com/nlmatics/nlm-ingestor/issues/66).
              När den är fixad kan denna användas istället för att beskära hela sidan. */
           /* TODO: fixa boundingbox för tabeller
           const { x, y, width, height } = calculateBoundingBoxForTable(
@@ -118,7 +124,8 @@ export async function extractTablesFromJson(
             pageHeight
           )*/
           const name = table.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()
-          const pngName = `table-${pageIndex}-${name}.png`
+          const pngName = generateShortFilename(name, pageIndex);
+          //const pngName = `table-${pageIndex}-${name}.png`
           const filename = path.join(outputDir, pngName)
 
           const pageWidth2 = Math.floor(pageWidth * 2)

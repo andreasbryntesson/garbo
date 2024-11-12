@@ -34,6 +34,7 @@ model Company {
   goals            Goal[]
   initiatives      Initiative[]
   baseYears        BaseYear[]
+  equalityGoals    EqualityGoal[]
 
   /// A comment only visible for reviewers to help them work with the company data and remember important info about this company.
   internalComment String?
@@ -215,7 +216,7 @@ model Scope3 {
 }
 
 /// Details about scope 3 categories. Here's a list of valid categories and their names:
-/// 
+///
 /// 1. purchasedGoods
 /// 2. capitalGoods
 /// 3. fuelAndEnergyRelatedActivities
@@ -366,4 +367,16 @@ model User {
   // TODO: store github profile image - or get it via API
   updated  Metadata[] @relation("metadata_user_id")
   verified Metadata[] @relation("metadata_verified_by")
+}
+
+model EqualityGoal {
+  id               Int      @id @default(autoincrement())
+  description      String
+  year             String?
+  targetPercentage Int?
+  baseYear         String?
+  companyId        String
+  createdAt        DateTime @default(now())
+
+  company          Company   @relation(fields: [companyId], references: [wikidataId])
 }

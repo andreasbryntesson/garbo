@@ -154,6 +154,43 @@ router.patch(
   }
 )
 
+const equalityGoalSchema = z.object({
+  description: z.string(),
+  year: z.string().optional(),
+  targetPercentage: z.number().optional(),
+  baseYear: z.string().optional(),
+})
+
+//not done
+router.post(
+  '/:wikidataId/equality-goals',
+  processRequest({
+    body: z.object({
+      equalityGoals: z.array(equalityGoalSchema),
+    }),
+    params: wikidataIdParamSchema,
+  }),
+  async (req, res) => {
+    const { equalityGoals } = req.body
+    const { wikidataId } = req.params
+    const metadata = res.locals.metadata
+
+    if (equalityGoals?.length) {
+      await prisma.equalityGoals.createMany({
+        data: equalityGoals.map((goal) => ({
+          ...goal,
+          companyId: wikidataId,
+          metadataId: metadata?.id,
+        })),
+      })
+    }
+
+    res.json({ ok: true })
+  }
+)
+
+
+
 const initiativeSchema = z.object({
   title: z.string(),
   description: z.string().optional(),
@@ -340,7 +377,7 @@ router.post(
         // TODO: type error for scope 3 categories - similar to the zod type bug for scope 1 and 2, it's not handling optional types correctly.
         scope3 && upsertScope3(emissions, scope3 as unknown, metadata),
         statedTotalEmissions &&
-          upsertStatedTotalEmissions(emissions, statedTotalEmissions, metadata),
+        upsertStatedTotalEmissions(emissions, statedTotalEmissions, metadata),
         biogenic && upsertBiogenic(emissions, biogenic, metadata),
       ])
     } catch (error) {
